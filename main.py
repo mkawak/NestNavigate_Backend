@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
 from firebase_admin import credentials, firestore
-
+import logging
 app = FastAPI()
 
 # Middleware for React frontend
@@ -23,9 +23,9 @@ app.add_middleware(
 )
 
 # Firebase key
-cred = credentials.Certificate("firebase-key.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+# cred = credentials.Certificate("firebase-key.json")
+# firebase_admin.initialize_app(cred)
+# db = firestore.client()
 
 # Secret and algorithm for JWT
 SECRET_KEY = "kTrXtbjOas4k-Xz9YbT4zt3u8mhujnWCKXyN6kEf4UQ"
