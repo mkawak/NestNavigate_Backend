@@ -90,19 +90,6 @@ sample_modules = [
     }
 ]
 
-# --- Defer Module Initialization ---
-@app.on_event("startup")
-async def init_modules():
-    print("Checking modules in Firestore...")
-    existing = list(modules_db.stream())
-    if not existing:
-        print("No modules found. Creating default modules.")
-        for module in sample_modules:
-            modules_db.document(module["id"]).set(module)
-        print("Sample modules initialized.")
-    else:
-        print(f"{len(existing)} modules already exist.")
-
 # --- Models ---
 class UserCreate(BaseModel):
     email: EmailStr
