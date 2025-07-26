@@ -10,7 +10,8 @@ from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
 from firebase_admin import credentials, firestore
-import logging
+import os
+import json
 app = FastAPI()
 
 # Middleware for React frontend
@@ -23,9 +24,16 @@ app.add_middleware(
 )
 
 # Firebase key
-# cred = credentials.Certificate("firebase-key.json")
-# firebase_admin.initialize_app(cred)
-# db = firestore.client()
+print("Initializing Firebase from environment variable...")
+firebase_creds_json = os.getenv("FIREBASE_KEY")
+if not firebase_creds_json:
+    raise RuntimeError("FIREBASE_KEY environment variable not set")
+
+firebase_creds = json.loads(firebase_creds_json)
+cred = credentials.Certificate(firebase_creds)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+print("Firebase initialized")
 
 # Secret and algorithm for JWT
 SECRET_KEY = "kTrXtbjOas4k-Xz9YbT4zt3u8mhujnWCKXyN6kEf4UQ"
