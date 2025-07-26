@@ -12,18 +12,20 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import os
 import json
+
+# --- Initialize FastAPI ---
 app = FastAPI()
 
-# Middleware for React frontend
+# --- CORS middleware for React frontend ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Firebase key
+# --- Firebase Initialization ---
 print("Initializing Firebase from environment variable...")
 firebase_creds_json = os.getenv("FIREBASE_KEY")
 if not firebase_creds_json:
@@ -35,77 +37,85 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 print("Firebase initialized")
 
-# Secret and algorithm for JWT
+# --- JWT Configuration ---
 SECRET_KEY = "kTrXtbjOas4k-Xz9YbT4zt3u8mhujnWCKXyN6kEf4UQ"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Password hashing
+# --- Security / Password ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
-# Database
+# --- Firestore Collections ---
 users_db = db.collection("users")
 modules_db = db.collection("modules")
-# One-time initialization of modules
-if not list(modules_db.stream()):
-    sample_modules = [
-        {
-            "id": "mod_1",
-            "title": "Home Buying Basics",
-            "lessons": ["What is a Mortgage?", "Down Payments 101", "Credit Scores"],
-            "total_coins": 75,
-            "difficulty": "Beginner"
-        },
-        {
-            "id": "mod_2",
-            "title": "Home Inspections",
-            "lessons": ["Types of Inspections", "Common Issues Found", "Hiring an Inspector"],
-            "total_coins": 100,
-            "difficulty": "Intermediate"
-        },
-        {
-            "id": "mod_3",
-            "title": "Mortgage Types",
-            "lessons": ["Fixed vs Adjustable Rates", "FHA, VA, and Conventional Loans", "Interest Rates Explained"],
-            "total_coins": 90,
-            "difficulty": "Intermediate"
-        },
-        {
-            "id": "mod_4",
-            "title": "Closing Process",
-            "lessons": ["What to Expect on Closing Day", "Closing Costs Breakdown", "Title and Escrow"],
-            "total_coins": 85,
-            "difficulty": "Beginner"
-        },
-        {
-            "id": "mod_5",
-            "title": "Homeownership Responsibilities",
-            "lessons": ["Maintenance Basics", "Property Taxes", "HOA Rules"],
-            "total_coins": 70,
-            "difficulty": "Beginner"
-        }
-    ]
-    for module in sample_modules:
-        modules_db.document(module["id"]).set(module)
 progress_db = db.collection("progress")
 
-# User Models
+# --- Sample Modules ---
+sample_modules = [
+    {
+        "id": "mod_1",
+        "title": "Home Buying Basics",
+        "lessons": ["What is a Mortgage?", "Down Payments 101", "Credit Scores"],
+        "total_coins": 75,
+        "difficulty": "Beginner"
+    },
+    {
+        "id": "mod_2",
+        "title": "Home Inspections",
+        "lessons": ["Types of Inspections", "Common Issues Found", "Hiring an Inspector"],
+        "total_coins": 100,
+        "difficulty": "Intermediate"
+    },
+    {
+        "id": "mod_3",
+        "title": "Mortgage Types",
+        "lessons": ["Fixed vs Adjustable Rates", "FHA, VA, and Conventional Loans", "Interest Rates Explained"],
+        "total_coins": 90,
+        "difficulty": "Intermediate"
+    },
+    {
+        "id": "mod_4",
+        "title": "Closing Process",
+        "lessons": ["What to Expect on Closing Day", "Closing Costs Breakdown", "Title and Escrow"],
+        "total_coins": 85,
+        "difficulty": "Beginner"
+    },
+    {
+        "id": "mod_5",
+        "title": "Homeownership Responsibilities",
+        "lessons": ["Maintenance Basics", "Property Taxes", "HOA Rules"],
+        "total_coins": 70,
+        "difficulty": "Beginner"
+    }
+]
+
+# --- Defer Module Initialization ---
+@app.on_event("startup")
+async def init_modules():
+    print("Checking modules in Firestore...")
+    existing = list(modules_db.stream())
+    if not existing:
+        print("No modules found. Creating default modules.")
+        for module in sample_modules:
+            modules_db.document(module["id"]).set(module)
+        print("Sample modules initialized.")
+    else:
+        print(f"{len(existing)} modules already exist.")
+
+# --- Models ---
 class UserCreate(BaseModel):
-    # EmailStr automatically validate email input
     email: EmailStr
     name: str
     password: str
 
 class User(BaseModel):
     id: int
-    # EmailStr automatically validate email input
     email: EmailStr
     name: str
     coins_earned: int = 0
     created_at: datetime
 
-# Module Model
 class Module(BaseModel):
     id: str
     title: str
@@ -113,7 +123,6 @@ class Module(BaseModel):
     total_coins: int
     difficulty: str
 
-# Progress Model
 class Progress(BaseModel):
     user_id: int
     module_id: str
@@ -121,38 +130,32 @@ class Progress(BaseModel):
     completion_percentage: float
     last_accessed: datetime
 
-# JWT token
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-# Extract and Validate User email
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-# Verify a password against its hash
+# --- Utility Functions ---
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-# Hash a plain text password
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-# Create a JWT access token
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# Retrieve user from Firestore by email
 def get_user_by_email(email: str):
     query = users_db.where("email", "==", email).limit(1).stream()
     for doc in query:
         return doc.to_dict()
     return None
 
-# Get current user from JWT token
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -166,7 +169,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-# Register a new user
+# --- API Endpoints ---
+
 @app.post("/api/users/register")
 def register(user: UserCreate):
     if get_user_by_email(user.email):
@@ -183,31 +187,32 @@ def register(user: UserCreate):
     })
     return {"msg": "User registered successfully"}
 
-# User login and return JWT token
 @app.post("/api/users/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = get_user_by_email(form_data.username)
     if not user or not verify_password(form_data.password, user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    access_token = create_access_token(data={"sub": user["email"]}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    access_token = create_access_token(
+        data={"sub": user["email"]},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# Get current user's profile
 @app.get("/api/users/profile", response_model=User)
 def get_profile(current_user: dict = Depends(get_current_user)):
     return User(**current_user)
 
-# Get all learning modules
 @app.get("/api/modules", response_model=List[Module])
 def get_modules():
     return [doc.to_dict() for doc in modules_db.stream()]
 
-# Mark a lesson as completed
 @app.post("/api/progress/complete-lesson")
 def complete_lesson(user_id: int, module_id: str, lesson: str):
     doc_id = f"{user_id}_{module_id}"
     doc_ref = progress_db.document(doc_id)
     doc = doc_ref.get()
+    lessons_completed = []
+
     if doc.exists:
         progress = doc.to_dict()
         lessons_completed = progress["lessons_completed"]
@@ -230,16 +235,13 @@ def complete_lesson(user_id: int, module_id: str, lesson: str):
         "last_accessed": datetime.utcnow().isoformat()
     })
 
-    # Award coins if module is fully completed and not already awarded
+    # Reward logic
     if completion_percentage == 100:
         module_coins = module_data.get("total_coins", 0)
         user_docs = users_db.where("id", "==", user_id).limit(1).stream()
         user_doc = next(user_docs, None)
         if user_doc:
             user_data = user_doc.to_dict()
-
-            # Check if the module has already been rewarded
-            reward_field = f"rewarded_modules.{module_id}"
             rewarded_modules = user_data.get("rewarded_modules", {})
             if not rewarded_modules.get(module_id):
                 new_total = user_data.get("coins_earned", 0) + module_coins
@@ -251,12 +253,10 @@ def complete_lesson(user_id: int, module_id: str, lesson: str):
 
     return {"msg": "Lesson marked as completed"}
 
-# Get progress of a specific user
 @app.get("/api/progress/{user_id}", response_model=List[Progress])
 def get_progress(user_id: int):
     return [doc.to_dict() for doc in progress_db.where("user_id", "==", user_id).stream()]
 
-# Award coins to a user
 @app.post("/api/coins/award")
 def award_coins(user_id: int, coins: int):
     user_docs = users_db.where("id", "==", user_id).limit(1).stream()
