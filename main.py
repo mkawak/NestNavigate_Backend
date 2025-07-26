@@ -259,3 +259,10 @@ def award_coins(user_id: int, coins: int):
     new_total = user_data.get("coins_earned", 0) + coins
     users_db.document(user_doc.id).update({"coins_earned": new_total})
     return {"msg": f"{coins} coins awarded"}
+
+
+# Run the server with uvicorn for Heroku deployment
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
