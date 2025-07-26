@@ -1,0 +1,51 @@
+### Register a new user
+
+POST http://127.0.0.1:8000/api/users/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "name": "Tester",
+  "password": "123456"
+}
+
+###
+
+### Login and store JWT token
+
+POST http://127.0.0.1:8000/api/users/login
+Content-Type: application/x-www-form-urlencoded
+
+username=test@example.com&password=123456
+> {% client.global.set("token", response.body.access_token) %}
+
+###
+
+### Get user profile using token
+
+GET http://127.0.0.1:8000/api/users/profile
+Authorization: Bearer {{token}}
+
+###
+
+### Get all modules
+
+GET http://127.0.0.1:8000/api/modules
+
+###
+
+### Complete a lesson
+
+POST http://127.0.0.1:8000/api/progress/complete-lesson?user_id=1&module_id=mod_1&lesson=Credit Scores
+
+###
+
+### Award coins to user
+
+POST http://127.0.0.1:8000/api/coins/award?user_id=1&coins=50
+
+###
+
+### Get user progress
+
+GET http://127.0.0.1:8000/api/progress/1
